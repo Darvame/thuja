@@ -26,5 +26,5 @@ tree:Call("GET", "/say/hello/to/my dog/my cat/my mouse/my beetles///", nil, "my 
 ```
 I want to take this opportunity
 And say Hello to my dog, my cat, my mouse, my beetles!
-Especially to my grandma, grandpa!
+Especially to my grandma, my grandpa!
 ```
