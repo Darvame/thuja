@@ -1,23 +1,40 @@
 local T = {};
 
+local next = next;
 local type = type;
 local unpack = unpack;
 local tostring = tostring;
-local find = string.find;
+local tconcat = table.concat;
 local gsub = string.gsub;
 
 local emptyTable = {};
+local emptyNode = {1, ""};
 local nullFunction = function() end
 local tableFunction = function() return emptyTable; end
+local nodeFunction = function() return emptyNode; end
 
+emptyNode["."] = emptyNode;
+emptyNode[".."] = emptyNode;
+
+local setmetatable = setmetatable;
 setmetatable(emptyTable, {__newindex = nullFunction});
+setmetatable(emptyNode, {__newindex = nullFunction});
 
 local l2TableMeta = {
 	__index = tableFunction;
 };
 
+local l2NodeMeta = {
+	__index = nodeFunction;
+}
+
 local l2TableClosed = setmetatable({}, {
 	__index = tableFunction;
+	__newindex = nullFunction;
+});
+
+local l2NodeClosed = setmetatable({}, {
+	__index = nodeFunction;
 	__newindex = nullFunction;
 });
 
@@ -26,54 +43,58 @@ local metaDefauts = {
 	_path_default = "/",
 	_method_default = "GET",
 	_env_method = "REQUEST_METHOD",
-	_env_path = "INFO_PATH",
-	_route_over = l2TableClosed,
-	_route_complex_direct = l2TableClosed,
-	_route_complex = l2TableClosed,
+	_env_path = "PATH_INFO",
+	_route_quickscope = l2TableClosed,
+	_route_complex = l2TableNode,
 	_not_found = nullFunction,
 };
 
-local regL2 = {
-	"_route_over",
-	"_route_complex_direct",
-	"_route_complex",
-};
-
-local regCopy = {
-	"_method_default",
-	"_path_default",
-	"_tail_key",
-	"_env_path",
-	"_env_method",
-};
-
+T._node_l2_meta = l2NodeMeta;
 T._meta_index = metaDefauts;
-T._reg_l2 = regL2;
-T._reg_copy = regCopy;
+T._table_l2_meta = l2TableMeta;
 
-T.New = function(self, t)
+metaDefauts._node_static = {
+	[".."] = true,
+	["."] = true,
+	[1] = true,
+	[2] = true,
+};
 
-	if not t then t = emptyTable; end
-	local setmetatable = setmetatable;
+T.New = function(self, cpy)
 
-	local p = setmetatable({}, {__index = self._meta_index});
+	if not cpy then cpy = emptyTable; end
 
-	if not t._split and not self._meta_index._split then
+	local thuthu = setmetatable({}, {__index = self._meta_index});
+
+	if not cpy._split and not self._meta_index._split then
 		self._meta_index._split = require("teateatea").pack;
 	end
 
-	local regL2 = T._reg_l2;
-	local regCopy = T._reg_copy;
-
-	for i = 1, #regL2 do
-		p[regL2[i]] = t[regL2[i]] or setmetatable({}, l2TableMeta);
+	for key, value in next, cpy do
+		thuthu[key] = value;
 	end
 
-	for i = 1, #regCopy do
-		p[regCopy[i]] = t[regCopy[i]];
+	thuthu._route_quickscope = setmetatable({}, self._table_l2_meta);
+	thuthu._route_complex = setmetatable({}, self._node_l2_meta);
+
+	return thuthu;
+end
+
+metaDefauts._found = function(self, env, func, path, onum, ohai, ...)
+	local tail;
+
+	if onum > 0 then
+		tail = {[0] = path, unpack(ohai, onum)};
+	else
+		tail = {[0] = path};
 	end
 
-	return p;
+	if env then
+		env[self._tail_key] = tail;
+		return func(env, ...);
+	end
+
+	return func(tail, ...);
 end
 
 metaDefauts.Call = function(self, method, path, env, ...)
@@ -81,50 +102,39 @@ metaDefauts.Call = function(self, method, path, env, ...)
 	if not method then method = (env and env[self._env_method]) or self._method_default; end
 	path = tostring(path or (env and env[self._env_path]) or self._path_default);
 
-	local over = self._route_over[method];
-	local direct = self._route_complex_direct[method];
+	local quick = self._route_quickscope[method][path];
 
-	local f = over[path] or direct[path];
-
-	if not f and find(path, "//", nil, true) then -- try again if path is incorrect;
-		path = gsub(path, "/+", "/"); -- correct plx
-		f = over[path] or direct[path];
-	end
-
-	if f then
-		local tail = {[0] = path};
-
-		if env then
-			env[self._tail_key] = tail;
-			return f(env, ...);
-		end
-
-		return f(tail, ...);
+	if quick then
+		return metaDefauts:_found(env, quick, path, 0, nil, ...);
 	end
 
 	local ohai = self._split(path, "/");
 	local obye = self._route_complex[method];
-	local to = #ohai;
+	local osize = #ohai;
 
-	for i = 1, to do
-		local ya = obye[ohai[i]];
+	for i = 1, osize do
+		local nah = obye[ohai[i]];
 
-		if not ya then
+		if not nah then
 			break;
 		end
 
-		if type(ya) == "function" then
-			local tail = {[0] = path, unpack(ohai, i + 1)};
+		obye = nah;
+	end
 
-			if env then
-				env[self._tail_key] = tail;
-				return ya(env, ...);
+	for i = obye[1], 1, -1 do
+		local candy = obye[0];
+
+		if candy then
+			local diff = osize - i + 1;
+			local func = candy[diff] or candy[-1];
+
+			if func then
+				return self:_found(env, func, path, osize - diff, ohai, ...);
 			end
-
-			return ya(tail, ...);
 		end
 
-		obye = ya;
+		obye = obye[".."];
 	end
 
 	return self:_not_found(method, path, ohai, env, ...);
@@ -134,24 +144,57 @@ local function path_center(path)
 	return gsub(gsub(gsub(tostring(path), "/+", "/"), "^/", ""), "/$", "");
 end
 
-local function path_set(self, path, value)
-	self[path] = value;
-	self[path .. "/"] = value;
-	self["/" .. path] = value;
-	self["/" .. path .. "/"] = value;
+local quickScopeTail = { [-1] = true, [0] = true };
+
+local function quickScopePath(node, table)
+	if node[1] == 1 then
+		return tconcat(table, "/");
+	end
+
+	table[node[1] - 1] = node[2];
+	return quickScopePath(node[".."], table);
 end
 
-local function complex_remove(prefix, direct, source)
-	for key, value in next, source do
-		if type(value) == "table" then
-			complex_remove(prefix .. "/" .. key, direct, value);
-		else
-			path_set(direct, prefix .. "/" .. key, nil);
+local function node_clean(node, st)
+	for key in next, node do
+		if not st[key] then
+			return;
 		end
+	end
+
+	if node[1] > 1 then
+		return node_clean(node[".."], st);
 	end
 end
 
-local function table_ensure(table, key, flag)
+metaDefauts._set_quickscope_set = function(_, self, path, value)
+	--self[path] = value; -- x/a/b/c
+	--self[path .. "/"] = value; -- x/a/b/c/
+	self["/" .. path] = value;	-- /x/a/b/c
+	self["/" .. path .. "/"] = value; -- /x/a/b/c/
+end
+
+metaDefauts._set_quickscope = function(self, quick, node, ntail, value)
+	if not quickScopeTail[ntail] then
+		return;
+	end
+
+	local path = quickScopePath(node, {});
+	local candy = node[0];
+
+	if not value then -- delete
+		if ntail == 0 and candy[-1] then
+			self:_set_quickscope_set(quick, path, candy[-1]);
+			return;
+		end
+	end
+
+	if ntail == 0 or ntail == -1 and not candy[0] then
+		self:_set_quickscope_set(quick, path, value);
+	end
+end
+
+metaDefauts._table_ensure = function(self, table, key, flag)
 	if flag and not rawget(table, key) then
 		table[key] = {};
 	end
@@ -159,83 +202,157 @@ local function table_ensure(table, key, flag)
 	return table[key];
 end
 
-metaDefauts.Set = function(self, method, path, func)
+metaDefauts._node_root = function(self, table, key, flag)
+	local node = self:_table_ensure(table, key, flag);
+
+	if flag then
+		node[1] = 1;
+		node[2] = "";
+		node[".."] = node;
+		node["."] = node;
+	end
+
+	return node;
+end
+
+metaDefauts._node_new = function(self, table, key)
+
+	local node = {
+		[1] = table[1] + 1,
+		[2] = key,
+		[".."] = table,
+	};
+
+	node["."] = node;
+	table[key] = node;
+	return node;
+end
+
+metaDefauts._set_table = function(self, node, quick, path, func)
+	for key, value in next, func do
+		if type(key) == "string" then
+			local key = path_center(key);
+			if key:len() > 0 then
+				self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
+			end
+		elseif type(key) == "number" and key > -2 then
+			self:_set_func(node, quick, path, key, value);
+		end
+	end
+end
+
+metaDefauts._set_func = function(self, node, quick, path, ntail, func)
+	local ohai = self._split(path, "/");
+
+	if func then
+		for i = 1, #ohai do
+			node = node[ohai[i]] or self:_node_new(node, ohai[i]);
+		end
+
+		local candy = node[0];
+
+		if not candy then
+			node[0] = {[ntail] = func};
+		else
+			candy[ntail] = func;
+		end
+
+		self:_set_quickscope(quick, node, ntail);
+	else
+		for i = 1, #ohai do
+			node = node[ohai[i]];
+
+			if not node then
+				return;
+			end
+		end
+
+		local candy = node[0];
+
+		if not candy then
+			return;
+		end
+
+		candy[ntail] = nil;
+		self:_set_quickscope(quick, node, ntail);
+
+		if not next(candy) then
+			node[0] = nil;
+			node_clean(node, self._node_static);
+		end
+	end
+end
+
+metaDefauts.Set = function(self, method, path, ntail, func)
 
 	if not path or not method then
 		return;
 	end
 
-	path = path_center(path);
+	if not func and type(ntail) ~= "number" then
+		func = ntail;
+		ntail = -1;
+	end
 
-	if func and type(func) == "table" then
-		for key, value in next, func do
-			self:Set(method, path .. "/" .. key, value);
-		end
-
+	if not ntail then
+		ntail = -1;
+	elseif ntail < -1 then
 		return;
 	end
 
-	local direct = table_ensure(self._route_complex_direct, method, func);
-	table_ensure(self._route_over, method, func); -- also commiting for over (lookup speed)
+	path = path_center(path);
+	local node = self:_node_root(self._route_complex, method, func);
+	local quick = self:_table_ensure(self._route_quickscope, method, func);
 
-	local ohai = self._split(path, "/");
-	local obye = table_ensure(self._route_complex, method, func);
-	local to = #ohai - 1;
-	local ya;
+	if func and type(func) == "table" then
+		return self:_set_table(node, quick, path, func);
+	end
 
-	if func ~= nil then
-		for i = 1, to do
-			ya = obye[ohai[i]];
+	return self:_set_func(node, quick, path, ntail, func);
+end
 
-			if ya and type(ya) == "function" then
-				path_set(direct, table.concat({unpack(ohai, 1, i)}, "/"), nil);
-				ya = nil;
-			end
+metaDefauts.Del = function(self, method, path, ntail)
+	return self:Set(method, path, type(ntail) == "number" and ntail or -1, nil);
+end
 
-			if not ya then
-				ya = {};
-				obye[ohai[i]] = ya;
-			end
+local function node_clean_chld(self, node, quick)
+	local static = self._node_static;
+	self:_set_quickscope_set(quick, quickScopePath(node, {}));
+	node[0] = nil;
 
-			obye = ya;
-		end
-	else
-		for i = 1, to do
-			ya = obye[ohai[i]];
-
-			if not ya or type(ya) == "function" then
-				return;
-			end
-
-			obye = ya;
+	for key, value in next, node do
+		if not static[key] then
+			node_clean_chld(self, value, quick);
+			node[key] = nil;
 		end
 	end
-
-	local last = ohai[#ohai];
-	local finally = obye[last];
-
-	if finally and type(finally) == "table" then
-		complex_remove(path, direct, finally);
-	end
-
-	if func or finally then
-		obye[last] = func;
-		path_set(direct, path, func);
-	end
 end
 
-metaDefauts.Del = function(self, method, path)
-	return self:Set(method, path, nil);
-end
+metaDefauts.NodeDel = function(self, method, path)
 
-metaDefauts.SetOver = function(self, method, path, func)
-	if method and path then
-		path_set(table_ensure(self._route_over, method, func), path_center(path), func);
+	if not path or not method then
+		return;
 	end
-end
 
-metaDefauts.DelOver = function(self, method, path)
-	return self:SetOver(method, path, nil);
+	local node = self:_node_root(self._route_complex, method);
+
+	if not node then
+		return;
+	end
+
+	local ohai = self._split(tostring(path), "/");
+	local quick = self:_table_ensure(self._route_quickscope, method);
+
+	for i = 1, #ohai do
+		node = node[ohai[i]];
+
+		if not node then
+			return;
+		end
+	end
+
+	node[".."][node[2]] = nil;
+	return node_clean_chld(self, node, quick);
 end
 
 return T;
