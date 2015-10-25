@@ -5,6 +5,7 @@ local type = type;
 local unpack = unpack;
 local tostring = tostring;
 local tconcat = table.concat;
+local tremove = table.remove;
 local gsub = string.gsub;
 
 local emptyTable = {};
@@ -97,6 +98,8 @@ metaDefauts._found = function(self, env, func, path, onum, ohai, ...)
 	return func(tail, ...);
 end
 
+local garbage = {"..", "."};
+
 metaDefauts.Call = function(self, method, path, env, ...)
 
 	if not method then method = (env and env[self._env_method]) or self._method_default; end
@@ -105,32 +108,44 @@ metaDefauts.Call = function(self, method, path, env, ...)
 	local quick = self._route_quickscope[method][path];
 
 	if quick then
-		return self:_found(env, quick, path, 0, nil, ...);
+		return metaDefauts:_found(env, quick, path, 0, nil, ...);
 	end
 
 	local ohai = self._split(path, "/");
 	local obye = self._route_complex[method];
-	local osize = #ohai;
+	local osize = #ohai + 1;
 
-	for i = 1, osize do
+	for i = 1, #ohai do
 		local nah = obye[ohai[i]];
 
 		if not nah then
+			osize = i;
 			break;
 		end
 
 		obye = nah;
 	end
 
+	-- remove garbage, if osize bigger
+	if osize > obye[1] then
+		for i = 1, osize do
+			if garbage[ohai[i]] then
+				tremove(ohai, i);
+				osize = osize - 1;
+				i = i - 1;
+			end
+		end
+	end
+
 	for i = obye[1], 1, -1 do
 		local candy = obye[0];
+		osize = osize - 1;
 
 		if candy then
-			local diff = osize - i + 1;
-			local func = candy[diff] or candy[-1];
+			candy = candy[#ohai - osize] or candy[-1];
 
-			if func then
-				return self:_found(env, func, path, osize - diff, ohai, ...);
+			if candy then
+				return self:_found(env, candy, path, osize + 1, ohai, ...);
 			end
 		end
 

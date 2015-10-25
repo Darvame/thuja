@@ -59,4 +59,6 @@ my1:Call("WTF", "/yo/mad", {}, "NO");
 
 my1:Set(0, "/l1/l2", 2, print_env);
 my1:Call(0, "/l1/l2/abc/bcd", nil, "OK");
+my1:Call(0, "/l1/././././././l2/abc/bcd", nil, "OK");
+my1:Call(0, "/l1/../l1/../l1/././././././../l1/l2/./abc/bcd", nil, "OK");
 my1:Call(0, "/l1/l2/3rgs/donot/call", nil, "NO");
