@@ -105,7 +105,7 @@ metaDefauts.Call = function(self, method, path, env, ...)
 	local quick = self._route_quickscope[method][path];
 
 	if quick then
-		return metaDefauts:_found(env, quick, path, 0, nil, ...);
+		return self:_found(env, quick, path, 0, nil, ...);
 	end
 
 	local ohai = self._split(path, "/");
