@@ -203,16 +203,16 @@ metaDefauts._table_ensure = function(self, table, key, flag)
 end
 
 metaDefauts._node_root = function(self, table, key, flag)
-	local node = self:_table_ensure(table, key, flag);
+	local node = rawget(table, key);
 
-	if flag then
-		node[1] = 1;
-		node[2] = "";
+	if not node and flag then
+		node = {1, ""};
 		node[".."] = node;
 		node["."] = node;
+		table[key] = node;
 	end
 
-	return node;
+	return node or table[key];
 end
 
 metaDefauts._node_new = function(self, table, key)
