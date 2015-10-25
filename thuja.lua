@@ -261,7 +261,7 @@ metaDefauts._set_func = function(self, node, quick, path, ntail, func)
 			candy[ntail] = func;
 		end
 
-		self:_set_quickscope(quick, node, ntail);
+		self:_set_quickscope(quick, node, ntail, value);
 	else
 		for i = 1, #ohai do
 			node = node[ohai[i]];
