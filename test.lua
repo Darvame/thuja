@@ -52,7 +52,7 @@ my1:Call("POST", "/level1/and_this/and/there!", {}, "OK");
 
 my1:NodeDel("POST", "/level1/level2/");
 my1:Call("POST", "/level1/level2/this/never/here", nil, "NO");
-my1:Call("POST", "/level1/and_this//////but/there!", nil, "OK");
+my1:Call("POST", "/level1/./and_this//////but/there!", nil, "OK");
 my1:Call("POST", "/my/1/2/3/nope", {}, "NO");
 
 my1:Call("WTF", "/yo/mad", {}, "NO");
@@ -60,5 +60,10 @@ my1:Call("WTF", "/yo/mad", {}, "NO");
 my1:Set(0, "/l1/l2", 2, print_env);
 my1:Call(0, "/l1/l2/abc/bcd", nil, "OK");
 my1:Call(0, "/l1/././././././l2/abc/bcd", nil, "OK");
-my1:Call(0, "/l1/../l1/../l1/././././././../l1/l2/./abc/bcd", nil, "OK");
+my1:Call(0, "/l1/../l1/../l1/././././././../l1/./l2/./abc/bcd", nil, "OK");
 my1:Call(0, "/l1/l2/3rgs/donot/call", nil, "NO");
+
+my1:Set(1, "/l1/l2/", print_env);
+my1:Set(1, "/l1/l2/special", 0, print_env);
+
+my1:Call(1, "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here", nil, "OK");

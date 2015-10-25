@@ -98,7 +98,30 @@ metaDefauts._found = function(self, env, func, path, onum, ohai, ...)
 	return func(tail, ...);
 end
 
-local garbage = {"..", "."};
+local function complex_search(node, ohai, pos)
+
+	if pos <= #ohai then
+		local nxt = node[ohai[pos]];
+
+		if nxt then
+			local candy, pos = complex_search(nxt, ohai, pos + 1);
+
+			if candy then
+				return candy, pos;
+			end
+		end
+	end
+
+	local candy = node[0];
+
+	if candy then
+		candy = candy[#ohai - pos + 1] or candy[-1];
+
+		if candy then
+			return candy, pos;
+		end
+	end
+end
 
 metaDefauts.Call = function(self, method, path, env, ...)
 
@@ -108,48 +131,14 @@ metaDefauts.Call = function(self, method, path, env, ...)
 	local quick = self._route_quickscope[method][path];
 
 	if quick then
-		return metaDefauts:_found(env, quick, path, 0, nil, ...);
+		return self:_found(env, quick, path, 0, nil, ...);
 	end
 
 	local ohai = self._split(path, "/");
-	local obye = self._route_complex[method];
-	local osize = #ohai + 1;
+	local candy, pos = complex_search(self._route_complex[method], ohai, 1);
 
-	for i = 1, #ohai do
-		local nah = obye[ohai[i]];
-
-		if not nah then
-			osize = i;
-			break;
-		end
-
-		obye = nah;
-	end
-
-	-- remove garbage, if osize bigger
-	if osize > obye[1] then
-		for i = 1, osize do
-			if garbage[ohai[i]] then
-				tremove(ohai, i);
-				osize = osize - 1;
-				i = i - 1;
-			end
-		end
-	end
-
-	for i = obye[1], 1, -1 do
-		local candy = obye[0];
-		osize = osize - 1;
-
-		if candy then
-			candy = candy[#ohai - osize] or candy[-1];
-
-			if candy then
-				return self:_found(env, candy, path, osize + 1, ohai, ...);
-			end
-		end
-
-		obye = obye[".."];
+	if candy then
+		return self:_found(env, candy, path, pos, ohai, ...);
 	end
 
 	return self:_not_found(method, path, ohai, env, ...);
