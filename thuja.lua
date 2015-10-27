@@ -5,7 +5,6 @@ local type = type;
 local unpack = unpack;
 local tostring = tostring;
 local tconcat = table.concat;
-local tremove = table.remove;
 local gsub = string.gsub;
 
 local emptyTable = {};
@@ -39,7 +38,7 @@ local l2NodeClosed = setmetatable({}, {
 	__newindex = nullFunction;
 });
 
-local metaDefauts = {
+local metaIndex = {
 	_tail_key = "_thuja_tail_",
 	_path_default = "/",
 	_method_default = "GET",
@@ -51,10 +50,10 @@ local metaDefauts = {
 };
 
 T._node_l2_meta = l2NodeMeta;
-T._meta_index = metaDefauts;
+T._meta_index = metaIndex;
 T._table_l2_meta = l2TableMeta;
 
-metaDefauts._node_static = {
+metaIndex._node_static = {
 	[".."] = true,
 	["."] = true,
 	[1] = true,
@@ -81,10 +80,10 @@ T.New = function(self, cpy)
 	return thuthu;
 end
 
-metaDefauts._found = function(self, env, func, path, onum, ohai, ...)
+metaIndex._found = function(self, env, func, path, onum, ohai, ...)
 	local tail;
 
-	if onum > 0 then
+	if ohai and onum <= #ohai then
 		tail = {[0] = path, unpack(ohai, onum)};
 	else
 		tail = {[0] = path};
@@ -123,7 +122,7 @@ local function complex_search(node, ohai, pos)
 	end
 end
 
-metaDefauts.Call = function(self, method, path, env, ...)
+metaIndex.Call = function(self, method, path, env, ...)
 
 	if not method then method = (env and env[self._env_method]) or self._method_default; end
 	path = tostring(path or (env and env[self._env_path]) or self._path_default);
@@ -131,7 +130,7 @@ metaDefauts.Call = function(self, method, path, env, ...)
 	local quick = self._route_quickscope[method][path];
 
 	if quick then
-		return self:_found(env, quick, path, 0, nil, ...);
+		return self:_found(env, quick, path, nil, nil, ...);
 	end
 
 	local ohai = self._split(path, "/");
@@ -145,7 +144,7 @@ metaDefauts.Call = function(self, method, path, env, ...)
 end
 
 local function path_center(path)
-	return gsub(gsub(gsub(tostring(path), "/+", "/"), "^/", ""), "/$", "");
+	return gsub(gsub(gsub(path, "/+", "/"), "^/", ""), "/$", "");
 end
 
 local quickScopeTail = { [-1] = true, [0] = true };
@@ -171,14 +170,14 @@ local function node_clean(node, st)
 	end
 end
 
-metaDefauts._set_quickscope_set = function(_, self, path, value)
+metaIndex._set_quickscope_set = function(_, self, path, value)
 	--self[path] = value; -- x/a/b/c
 	--self[path .. "/"] = value; -- x/a/b/c/
 	self["/" .. path] = value;	-- /x/a/b/c
 	self["/" .. path .. "/"] = value; -- /x/a/b/c/
 end
 
-metaDefauts._set_quickscope = function(self, quick, node, ntail, value)
+metaIndex._set_quickscope = function(self, quick, node, ntail, value)
 	if not quickScopeTail[ntail] then
 		return;
 	end
@@ -198,7 +197,7 @@ metaDefauts._set_quickscope = function(self, quick, node, ntail, value)
 	end
 end
 
-metaDefauts._table_ensure = function(self, table, key, flag)
+metaIndex._table_ensure = function(self, table, key, flag)
 	if flag and not rawget(table, key) then
 		table[key] = {};
 	end
@@ -206,10 +205,10 @@ metaDefauts._table_ensure = function(self, table, key, flag)
 	return table[key];
 end
 
-metaDefauts._node_root = function(self, table, key, flag)
+metaIndex._node_root = function(self, table, key, flag)
 	local node = rawget(table, key);
 
-	if not node and flag then
+	if flag and not node then
 		node = {1, ""};
 		node[".."] = node;
 		node["."] = node;
@@ -219,7 +218,7 @@ metaDefauts._node_root = function(self, table, key, flag)
 	return node or table[key];
 end
 
-metaDefauts._node_new = function(self, table, key)
+metaIndex._node_new = function(self, table, key)
 
 	local node = {
 		[1] = table[1] + 1,
@@ -232,11 +231,11 @@ metaDefauts._node_new = function(self, table, key)
 	return node;
 end
 
-metaDefauts._set_table = function(self, node, quick, path, func)
+metaIndex._set_table = function(self, node, quick, path, func)
 	for key, value in next, func do
 		if type(key) == "string" then
 			local key = path_center(key);
-			if key:len() > 0 then
+			if key:len() > 0 and not self._node_static[key] then
 				self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
 			end
 		elseif type(key) == "number" and key > -2 then
@@ -245,7 +244,7 @@ metaDefauts._set_table = function(self, node, quick, path, func)
 	end
 end
 
-metaDefauts._set_func = function(self, node, quick, path, ntail, func)
+metaIndex._set_func = function(self, node, quick, path, ntail, func)
 	local ohai = self._split(path, "/");
 
 	if func then
@@ -287,7 +286,7 @@ metaDefauts._set_func = function(self, node, quick, path, ntail, func)
 	end
 end
 
-metaDefauts.Set = function(self, method, path, ntail, func)
+metaIndex.Set = function(self, method, path, ntail, func)
 
 	if not path or not method then
 		return;
@@ -304,7 +303,6 @@ metaDefauts.Set = function(self, method, path, ntail, func)
 		return;
 	end
 
-	path = path_center(path);
 	local node = self:_node_root(self._route_complex, method, func);
 	local quick = self:_table_ensure(self._route_quickscope, method, func);
 
@@ -315,7 +313,7 @@ metaDefauts.Set = function(self, method, path, ntail, func)
 	return self:_set_func(node, quick, path, ntail, func);
 end
 
-metaDefauts.Del = function(self, method, path, ntail)
+metaIndex.Del = function(self, method, path, ntail)
 	return self:Set(method, path, type(ntail) == "number" and ntail or -1, nil);
 end
 
@@ -332,7 +330,7 @@ local function node_clean_chld(self, node, quick)
 	end
 end
 
-metaDefauts.NodeDel = function(self, method, path)
+metaIndex.NodeDel = function(self, method, path)
 
 	if not path or not method then
 		return;
