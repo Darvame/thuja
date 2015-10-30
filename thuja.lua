@@ -15,6 +15,7 @@ local nodeFunction = function() return emptyNode; end
 
 emptyNode["."] = emptyNode;
 emptyNode[".."] = emptyNode;
+emptyNode[""] = emptyNode;
 
 local setmetatable = setmetatable;
 setmetatable(emptyTable, {__newindex = nullFunction});
@@ -54,6 +55,7 @@ T._meta_index = metaIndex;
 T._table_l2_meta = l2TableMeta;
 
 metaIndex._node_static = {
+	[""] = true,
 	[".."] = true,
 	["."] = true,
 	[1] = true,
@@ -133,7 +135,7 @@ metaIndex.Call = function(self, method, path, env, ...)
 		return self:_found(env, quick, path, nil, nil, ...);
 	end
 
-	local ohai = self._split(path, "/");
+	local ohai = self._split(path, "/", true);
 	local candy, pos = complex_search(self._route_complex[method], ohai, 1);
 
 	if candy then
@@ -141,10 +143,6 @@ metaIndex.Call = function(self, method, path, env, ...)
 	end
 
 	return self:_not_found(method, path, ohai, env, ...);
-end
-
-local function path_center(path)
-	return gsub(gsub(gsub(path, "/+", "/"), "^/", ""), "/$", "");
 end
 
 local quickScopeTail = { [-1] = true, [0] = true };
@@ -210,6 +208,7 @@ metaIndex._node_root = function(self, table, key, flag)
 
 	if flag and not node then
 		node = {1, ""};
+		node[""] = node;
 		node[".."] = node;
 		node["."] = node;
 		table[key] = node;
@@ -226,6 +225,7 @@ metaIndex._node_new = function(self, table, key)
 		[".."] = table,
 	};
 
+	node[""] = node;
 	node["."] = node;
 	table[key] = node;
 	return node;
@@ -234,10 +234,7 @@ end
 metaIndex._set_table = function(self, node, quick, path, func)
 	for key, value in next, func do
 		if type(key) == "string" then
-			local key = path_center(key);
-			if key:len() > 0 and not self._node_static[key] then
-				self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
-			end
+			self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
 		elseif type(key) == "number" and key > -2 then
 			self:_set_func(node, quick, path, key, value);
 		end
@@ -245,7 +242,7 @@ metaIndex._set_table = function(self, node, quick, path, func)
 end
 
 metaIndex._set_func = function(self, node, quick, path, ntail, func)
-	local ohai = self._split(path, "/");
+	local ohai = self._split(path, "/", true);
 
 	if func then
 		for i = 1, #ohai do
@@ -342,7 +339,7 @@ metaIndex.NodeDel = function(self, method, path)
 		return;
 	end
 
-	local ohai = self._split(tostring(path), "/");
+	local ohai = self._split(tostring(path), "/", true);
 	local quick = self:_table_ensure(self._route_quickscope, method);
 
 	for i = 1, #ohai do

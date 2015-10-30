@@ -40,7 +40,9 @@ my1:Call("GET", "my/1/2/3", nil, "OK");
 my1:Set("POST", "/", {
 	level1 = {
 		level2 = {
-			this = print_env;
+			this = {
+				[""] = print_env;
+			}
 		};
 
 		and_this = print_env;
