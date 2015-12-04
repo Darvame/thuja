@@ -5,7 +5,6 @@ local type = type;
 local unpack = unpack;
 local tostring = tostring;
 local tconcat = table.concat;
-local gsub = string.gsub;
 
 local emptyTable = {};
 local emptyNode = {1, ""};
@@ -203,10 +202,10 @@ metaIndex._table_ensure = function(self, table, key, flag)
 	return table[key];
 end
 
-metaIndex._node_root = function(self, table, key, flag)
+metaIndex._node_root = function(self, table, key, new)
 	local node = rawget(table, key);
 
-	if flag and not node then
+	if new and not node then
 		node = {1, ""};
 		node[""] = node;
 		node[".."] = node;
@@ -228,6 +227,7 @@ metaIndex._node_new = function(self, table, key)
 	node[""] = node;
 	node["."] = node;
 	table[key] = node;
+
 	return node;
 end
 
@@ -241,10 +241,23 @@ metaIndex._set_table = function(self, node, quick, path, func)
 	end
 end
 
+local node_pass = function(node, ohai)
+	for i = 1, #ohai do
+		node = node[ohai[i]];
+
+		if not node then
+			return nil;
+		end
+	end
+
+	return node;
+end
+
 metaIndex._set_func = function(self, node, quick, path, ntail, func)
-	local ohai = self._split(path, "/", true);
 
 	if func then
+		local ohai = self._split(path, "/", true);
+
 		for i = 1, #ohai do
 			node = node[ohai[i]] or self:_node_new(node, ohai[i]);
 		end
@@ -259,13 +272,7 @@ metaIndex._set_func = function(self, node, quick, path, ntail, func)
 
 		self:_set_quickscope(quick, node, ntail, value);
 	else
-		for i = 1, #ohai do
-			node = node[ohai[i]];
-
-			if not node then
-				return;
-			end
-		end
+		node = node_pass(node, self._split(path, "/", true));
 
 		local candy = node[0];
 
@@ -274,12 +281,22 @@ metaIndex._set_func = function(self, node, quick, path, ntail, func)
 		end
 
 		candy[ntail] = nil;
+
 		self:_set_quickscope(quick, node, ntail);
 
 		if not next(candy) then
 			node[0] = nil;
 			node_clean(node, self._node_static);
 		end
+	end
+end
+
+metaIndex.Get = function(self, method, path, ntail)
+
+	local node = node_pass(self:_node_root(self._route_complex, method), self._split(path, "/", true));
+
+	if node and node[0] then
+		return node[0][ntail or -1];
 	end
 end
 
@@ -315,6 +332,7 @@ metaIndex.Del = function(self, method, path, ntail)
 end
 
 local function node_clean_chld(self, node, quick)
+
 	local static = self._node_static;
 	self:_set_quickscope_set(quick, quickScopePath(node, {}));
 	node[0] = nil;

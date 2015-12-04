@@ -69,3 +69,10 @@ my1:Set(1, "/l1/l2/", print_env);
 my1:Set(1, "/l1/l2/special", 0, print_env);
 
 my1:Call(1, "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here", nil, "OK");
+
+local a = function() end
+
+my1:Set("GETTEST", "/1/2/3/abc/abr/$!@#/lol", 3, a);
+assert(a == my1:Get("GETTEST", "/1/2/3/abc/abr/$!@#/lol", 3), ":GET() fail");
+assert(my1:Get("GETTEST", "/1/2/3/abc/abr/$!@#/lol") == nil, ":GET() fail");
+assert(my1:Get("GETTEST", "/1/2/3/abc/abr/$!@#/lol", -2) == nil, ":GET() fail");
