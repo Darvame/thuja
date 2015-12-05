@@ -351,22 +351,13 @@ metaIndex.NodeDel = function(self, method, path)
 		return;
 	end
 
-	local node = self:_node_root(self._route_complex, method);
+	local node = node_pass(self:_node_root(self._route_complex, method), self._split(tostring(path), "/", true));
 
 	if not node then
 		return;
 	end
 
-	local ohai = self._split(tostring(path), "/", true);
 	local quick = self:_table_ensure(self._route_quickscope, method);
-
-	for i = 1, #ohai do
-		node = node[ohai[i]];
-
-		if not node then
-			return;
-		end
-	end
 
 	node[".."][node[2]] = nil;
 	return node_clean_chld(self, node, quick);
