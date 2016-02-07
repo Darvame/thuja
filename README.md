@@ -19,8 +19,8 @@ end
 -- reg it
 tree:Set("GET", "/say/hello/to", say_hello);
 
--- call it (without env (3rd arg))
-tree:Call("GET", "/say/hello/to/my dog/my cat/my mouse/my beetles///", nil, "my grandma", "my grandpa");
+-- call it
+tree:Call("GET", "/say/hello/to/my dog/my cat/my mouse/my beetles///", "my grandma", "my grandpa");
 ```
 ---
 ```

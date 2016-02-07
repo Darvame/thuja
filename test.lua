@@ -3,7 +3,7 @@
 
 local T = require "thuja";
 
-T._meta_index._not_found = function(self,m,p,h,e,o)
+T._meta_index._not_found = function(self,m,p,h,o)
 	print("NOT found", m, p, o);
 	assert(o == "NO", o);
 end
@@ -28,14 +28,14 @@ my1:Set("GET", "/my/1", print_env);
 my1:Set("GET", "/my/2", print_env);
 my1:Set("GET", "/my/3/4/5", print_env);
 
-my1:Call("GET", "/my/2/1/2/3/4", nil, "OK");
+my1:Call("GET", "/my/2/1/2/3/4", "OK");
 my1:Del("GET", "my/2");
-my1:Call("GET", "/my/2/1/2/3/4", nil, "NO");
+my1:Call("GET", "/my/2/1/2/3/4", "NO");
 
-my1:Call(nil, "my/3/4/5", {}, "OK");
+my1:Call(nil, "my/3/4/5", "OK");
 
-my1:Call("GET", "my/1/2/3", nil, "OK");
-my1:Call("GET", "my/1/2/3", nil, "OK");
+my1:Call("GET", "my/1/2/3", "OK");
+my1:Call("GET", "my/1/2/3", "OK");
 
 my1:Set("POST", "/", {
 	level1 = {
@@ -49,26 +49,40 @@ my1:Set("POST", "/", {
 	}
 });
 
-my1:Call("POST", "/level1/level2/this/hello/there!", nil, "OK");
-my1:Call("POST", "/level1/and_this/and/there!", {}, "OK");
+my1:Call("POST", "/level1/level2/this/hello/there!", "OK");
+my1:Call("POST", "/level1/and_this/and/there!", "OK");
 
 my1:NodeDel("POST", "/level1/level2/");
-my1:Call("POST", "/level1/level2/this/never/here", nil, "NO");
-my1:Call("POST", "/level1/./and_this//////but/there!", nil, "OK");
-my1:Call("POST", "/my/1/2/3/nope", {}, "NO");
+my1:Call("POST", "/level1/level2/this/never/here", "NO");
+my1:Call("POST", "/level1/./and_this//////but/there!", "OK");
+my1:Call("POST", "/my/1/2/3/nope", "NO");
 
-my1:Call("WTF", "/yo/mad", {}, "NO");
+my1:Call("WUT", "/yo/mad", "NO");
 
 my1:Set(0, "/l1/l2", 2, print_env);
-my1:Call(0, "/l1/l2/abc/bcd", nil, "OK");
-my1:Call(0, "/l1/././././././l2/abc/bcd", nil, "OK");
-my1:Call(0, "/l1/../l1/../l1/././././././../l1/./l2/./abc/bcd", nil, "OK");
-my1:Call(0, "/l1/l2/3rgs/donot/call", nil, "NO");
+my1:Call(0, "/l1/l2/abc/bcd", "OK");
+my1:Call(0, "/l1/././././././l2/abc/bcd", "OK");
+my1:Call(0, "/l1/../l1/../l1/././././././../l1/./l2/./abc/bcd", "OK");
+my1:Call(0, "/l1/l2/3rgs/donot/call", "NO");
 
 my1:Set(1, "/l1/l2/", print_env);
 my1:Set(1, "/l1/l2/special", 0, print_env);
 
-my1:Call(1, "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here", nil, "OK");
+my1._env_path = "teh_path";
+my1._env_method = "teh_method";
+
+my1:Call(1, "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here", "OK");
+my1:CallEnv({
+	["REQUEST_METHOD"] = 1,
+	["PATH_INFO"] = "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here"
+}, "OK");
+
+my1._env_path = "teh_path";
+my1._env_method = "teh_method";
+my1:CallEnv({
+	teh_method = 1,
+	teh_path = "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here"
+}, "OK");
 
 local a = function() end
 
