@@ -54,12 +54,14 @@ T._node_l2_meta = l2NodeMeta;
 T._meta_index = meta_index;
 T._table_l2_meta = l2TableMeta;
 
-meta_index._node_static = {
-	[""] = true,
-	[".."] = true,
-	["."] = true,
-	[1] = true,
-	[2] = true,
+meta_index._node_static = { -- node description
+	[""] = true, -- me
+	[".."] = true, -- parent
+	["."] = true, -- me
+	[1] = true, -- my order number
+	[2] = true, -- my name
+	-- [0] -- workload
+	-- [string_key1] ... [string_keyn] -- children
 };
 
 T.New = function(self, cpy)
@@ -205,7 +207,9 @@ local function node_clean(node, st)
 	end
 
 	if node[1] > 1 then
-		return node_clean(node[".."], st);
+		local parent = node[".."];
+		parent[node[2]] = nil;
+		return node_clean(parent, st);
 	end
 end
 
@@ -247,19 +251,19 @@ meta_index._table_ensure = function(self, table, key, flag)
 	return table[key];
 end
 
-meta_index._node_root = function(self, table, key, new)
+meta_index._node_root = function(self, table, method, new)
 
-	local node = rawget(table, key);
+	local node = rawget(table, method);
 
 	if new and not node then
 		node = {1, ""};
 		node[""] = node;
 		node[".."] = node;
 		node["."] = node;
-		table[key] = node;
+		table[method] = node;
 	end
 
-	return node or table[key];
+	return node or table[method];
 end
 
 meta_index._node_new = function(self, table, key)
