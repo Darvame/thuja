@@ -292,9 +292,18 @@ end
 
 meta_index._set_table = function(self, node, quick, path, func)
 
+	local valid_type = self._set_valid_types;
+
 	for key, value in next, func do
+
+		local ftype = type(value);
+
+		if not valid_type[ftype] then
+			error(string.format(ER_INVALID_CALLABLE_TYPE, ftype));
+		end
+
 		if type(key) == "string" then
-			self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
+			self:_set_table(node, quick, path .. "/" .. key, ftype == "table" and value or {[-1] = value});
 		elseif type(key) == "number" then
 			if key < -1 then
 				error(string.format(ER_INVALID_TAIL_SIZE, key));
