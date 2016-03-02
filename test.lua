@@ -89,4 +89,11 @@ local a = function() end
 my1:Set("GETTEST", "/1/2/3/abc/abr/$!@#/lol", 3, a);
 assert(a == my1:Get("GETTEST", "/1/2/3/abc/abr/$!@#/lol", 3), ":GET() fail");
 assert(my1:Get("GETTEST", "/1/2/3/abc/abr/$!@#/lol") == nil, ":GET() fail");
-assert(my1:Get("GETTEST", "/1/2/3/abc/abr/$!@#/lol", -2) == nil, ":GET() fail");
+
+assert(pcall(function() -- faild
+	my1:Get("GETTEST", "/1/2/3/abc/abr/$!@#/lol", -2);
+end) == false, ":GET() fail");
+
+assert(pcall(function() -- faild
+	my1:Set(nil, "/1/2/3/abc/abr/$!@#/lol", 3, a);
+end) == false, ":GET() fail");

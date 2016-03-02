@@ -1,9 +1,10 @@
-local T = {};
+local T = { _VERSION = 100 };
 
 local next = next;
 local type = type;
 local unpack = unpack;
 local tostring = tostring;
+local tonumber = tonumber;
 local tconcat = table.concat;
 
 local emptyTable = {};
@@ -19,6 +20,13 @@ emptyNode[""] = emptyNode;
 local setmetatable = setmetatable;
 setmetatable(emptyTable, {__newindex = nullFunction});
 setmetatable(emptyNode, {__newindex = nullFunction});
+
+local ER_NO_PATH = "no path defined";
+local ER_NO_METHOD = "no method defined";
+
+local ER_INVALID_TAIL_SIZE = "invalid tail size: %d";
+local ER_INVALID_TAIL_TYPE = "invalid tail type: %s";
+local ER_INVALID_CALLABLE_TYPE = "invalid callable type: %s";
 
 local l2TableMeta = {
 	__index = tableFunction;
@@ -64,24 +72,25 @@ meta_index._node_static = { -- node description
 	-- [string_key1] ... [string_keyn] -- children
 };
 
-T.New = function(self, cpy)
+T.New = function(self, thu)
 
-	if not cpy then cpy = emptyTable; end
+	if not thu then
+		thu = {};
+	end
 
-	local thu = setmetatable({}, { __index = self._meta_index });
-
-	if not cpy._split and not self._meta_index._split then
+	if not self._meta_index._split and not thu._split then
 		self._meta_index._split = require("teateatea").pack;
 	end
 
-	for key, value in next, cpy do
-		thu[key] = value;
+	if not thu._route_quickscope then
+		thu._route_quickscope = setmetatable({}, self._table_l2_meta);
 	end
 
-	thu._route_quickscope = setmetatable({}, self._table_l2_meta);
-	thu._route_complex = setmetatable({}, self._node_l2_meta);
+	if not thu._route_complex then
+		thu._route_complex = setmetatable({}, self._node_l2_meta);
+	end
 
-	return thu;
+	return setmetatable(thu, { __index = self._meta_index });
 end
 
 local new_tail = function(path, onum, ohai)
@@ -137,11 +146,11 @@ meta_index.CallEnv = function(self, env, ...)
 
 	if not env then
 		env = {};
-		method = self._method_default;
-		path = self._path_default;
+		method = self._method_default or error(ER_NO_METHOD);
+		path = self._path_default or error(ER_NO_PATH);
 	else
-		method = env[self._env_method] or self._method_default;
-		path = tostring(env[self._env_path]) or self._path_default;
+		method = env[self._env_method] or (self._method_default or error(ER_NO_METHOD));
+		path = tostring(env[self._env_path]) or (self._path_default or error(ER_NO_PATH));
 	end
 
 	local quick = self._route_quickscope[method][path];
@@ -162,8 +171,8 @@ end
 
 meta_index.Call = function(self, method, path, ...)
 
-	if not method then method = self._method_default; end
-	path = tostring(path) or self._path_default;
+	if not method then method = (self._method_default or error(ER_NO_METHOD)); end
+	path = tostring(path) or (self._path_default or error(ER_NO_PATH));
 
 	local quick = self._route_quickscope[method][path];
 
@@ -343,37 +352,72 @@ meta_index._set_func = function(self, node, quick, path, ntail, func)
 	end
 end
 
+local check_path_method_tail = function(method, path, tail)
+
+	if not method then
+		error(ER_NO_METHOD);
+	end
+
+	path = tostring(path);
+
+	if not path then
+		error(ER_NO_PATH);
+	end
+
+	if tail then
+		local ntail = tonumber(tail);
+
+		if not ntail then
+			error(string.format(ER_INVALID_TAIL_TYPE, type(tail)));
+		end
+
+		if (ntail < -1) then
+			error(string.format(ER_INVALID_TAIL_SIZE, ntail));
+		end
+
+		return path, ntail;
+	end
+
+	return path, -1;
+end
+
 meta_index.Get = function(self, method, path, ntail)
+
+	path, ntail = check_path_method_tail(method, path, ntail);
 
 	local node = node_pass(self:_node_root(self._route_complex, method), self._split(path, "/", true));
 
 	if node and node[0] then
-		return node[0][ntail or -1];
+		return node[0][ntail];
 	end
 end
 
+meta_index._set_valid_types = {
+	["function"] = true, ["table"] = true, ["userdata"] = true;
+}
+
 meta_index.Set = function(self, method, path, ntail, func)
 
-	if not path or not method then
-		return;
-	end
-
-	if not func and type(ntail) ~= "number" then
+	if not func and not tonumber(ntail) then
 		func = ntail;
-		ntail = -1;
+		ntail = nil;
 	end
 
-	if not ntail then
-		ntail = -1;
-	elseif ntail < -1 then
-		return;
-	end
+	path, ntail = check_path_method_tail(method, path, ntail);
 
 	local node = self:_node_root(self._route_complex, method, func);
 	local quick = self:_table_ensure(self._route_quickscope, method, func);
 
-	if func and type(func) == "table" then
-		return self:_set_table(node, quick, path, func);
+	if func then
+		local ftype = type(func);
+
+		if not self._set_valid_types[ftype] then
+			error(string.format(ER_INVALID_CALLABLE_TYPE, ftype));
+		end
+
+		if ftype == "table" then
+			return self:_set_table(node, quick, path, func);
+		end
 	end
 
 	return self:_set_func(node, quick, path, ntail, func);
@@ -381,7 +425,7 @@ end
 
 meta_index.Del = function(self, method, path, ntail)
 
-	return self:Set(method, path, type(ntail) == "number" and ntail or -1, nil);
+	return self:Set(method, path, ntail, nil);
 end
 
 local function node_clean_chld(self, node, quick)
@@ -400,11 +444,9 @@ end
 
 meta_index.NodeDel = function(self, method, path)
 
-	if not path or not method then
-		return;
-	end
+	path = check_path_method_tail(method, path, nil);
 
-	local node = node_pass(self:_node_root(self._route_complex, method), self._split(tostring(path), "/", true));
+	local node = node_pass(self:_node_root(self._route_complex, method), self._split(path, "/", true));
 
 	if not node then
 		return;
