@@ -96,4 +96,8 @@ end) == false, ":GET() fail");
 
 assert(pcall(function() -- faild
 	my1:Set(nil, "/1/2/3/abc/abr/$!@#/lol", 3, a);
-end) == false, ":GET() fail");
+end) == false, ":SET() fail");
+
+assert(pcall(function() -- faild
+	my1:Set(1, "/", { [-3] = function() end });
+end) == false, ":SET() fail");

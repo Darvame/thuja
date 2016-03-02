@@ -295,7 +295,11 @@ meta_index._set_table = function(self, node, quick, path, func)
 	for key, value in next, func do
 		if type(key) == "string" then
 			self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
-		elseif type(key) == "number" and key > -2 then
+		elseif type(key) == "number" then
+			if key < -1 then
+				error(string.format(ER_INVALID_TAIL_SIZE, key));
+			end
+
 			self:_set_func(node, quick, path, key, value);
 		end
 	end
