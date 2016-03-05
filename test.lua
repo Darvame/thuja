@@ -101,3 +101,10 @@ end) == false, ":SET() fail");
 assert(pcall(function() -- faild
 	my1:Set(1, "/", { [-3] = function() end });
 end) == false, ":SET() fail");
+
+-- quick
+my1:Set("Q", "/1/2/3/4", 0, function() return 0; end);
+my1:Set("Q", "/1/2/3/4", function() return 1; end);
+
+assert(my1:Call("Q", "/1/2/3/4") == 0, "qu arg");
+assert(my1:Call("Q", "/1/2/3/4/5/6") == 1, "qu arg");

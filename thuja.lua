@@ -188,16 +188,14 @@ meta_index.CallAny = function(self, env_or_meth, ...)
 	return self[type(env_or_meth) == "table" and "CallEnv" or "Call"](self, env_or_meth, ...);
 end
 
-local quickScopeTail = { [-1] = true, [0] = true };
-
-local function quick_scope_path(node, table)
+local function quickscope_path(node, table)
 
 	if node[1] == 1 then
 		return tconcat(table, "/");
 	end
 
 	table[node[1] - 1] = node[2];
-	return quick_scope_path(node[".."], table);
+	return quickscope_path(node[".."], table);
 end
 
 local function node_clean(node, st)
@@ -215,7 +213,7 @@ local function node_clean(node, st)
 	end
 end
 
-meta_index._set_quickscope_set = function(_, self, path, value)
+meta_index._set_quickscope = function(_, self, path, value)
 
 	--self[path] = value; -- x/a/b/c
 	--self[path .. "/"] = value; -- x/a/b/c/
@@ -223,25 +221,21 @@ meta_index._set_quickscope_set = function(_, self, path, value)
 	self["/" .. path .. "/"] = value; -- /x/a/b/c/
 end
 
-meta_index._set_quickscope = function(self, quick, node, ntail, value)
+meta_index._update_quickscope = function(self, quick, node, ntail)
 
-	if not quickScopeTail[ntail] then
+	if ntail and ntail > 0 then -- quickscope only for 0 and -1
 		return;
 	end
 
-	local path = quick_scope_path(node, {});
 	local candy = node[0];
 
-	if not value then -- delete
-		if ntail == 0 and candy[-1] then
-			self:_set_quickscope_set(quick, path, candy[-1]);
-			return;
-		end
-	end
+	-- updating
+	return self:_set_quickscope(quick, quickscope_path(node, {}), candy[0] or candy[-1]);
+end
 
-	if ntail == 0 or ntail == -1 and not candy[0] then
-		self:_set_quickscope_set(quick, path, value);
-	end
+meta_index._remove_quickscope = function(self, quick, node)
+
+	return self:_set_quickscope(quick, quickscope_path(node, {}), nil);
 end
 
 meta_index._table_ensure = function(self, table, key, flag)
@@ -338,7 +332,7 @@ meta_index._set_func = function(self, node, quick, path, ntail, func)
 			candy[ntail] = func;
 		end
 
-		self:_set_quickscope(quick, node, ntail, value);
+		self:_update_quickscope(quick, node, ntail);
 	else
 		node = node_pass(node, self._split(path, "/", true));
 
@@ -350,7 +344,7 @@ meta_index._set_func = function(self, node, quick, path, ntail, func)
 
 		candy[ntail] = nil;
 
-		self:_set_quickscope(quick, node, ntail);
+		self:_update_quickscope(quick, node, ntail);
 
 		if not next(candy) then
 			node[0] = nil;
@@ -426,7 +420,7 @@ end
 local function node_clean_chld(self, node, quick)
 
 	local static = self._node_static;
-	self:_set_quickscope_set(quick, quick_scope_path(node, {}));
+	self:_remove_quickscope(quick, node);
 	node[0] = nil;
 
 	for key, value in next, node do
