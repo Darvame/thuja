@@ -21,13 +21,6 @@ local setmetatable = setmetatable;
 setmetatable(emptyTable, {__newindex = nullFunction});
 setmetatable(emptyNode, {__newindex = nullFunction});
 
-local ER_NO_PATH = "no path defined";
-local ER_NO_METHOD = "no method defined";
-
-local ER_INVALID_TAIL_SIZE = "invalid tail size: %d";
-local ER_INVALID_TAIL_TYPE = "invalid tail type: %s";
-local ER_INVALID_CALLABLE_TYPE = "invalid callable type: %s";
-
 local l2TableMeta = {
 	__index = tableFunction;
 };
@@ -146,11 +139,11 @@ meta_index.CallEnv = function(self, env, ...)
 
 	if not env then
 		env = {};
-		method = self._method_default or error(ER_NO_METHOD);
-		path = self._path_default or error(ER_NO_PATH);
+		method = self._method_default or error("no method defined");
+		path = self._path_default or error("no path defined");
 	else
-		method = env[self._env_method] or (self._method_default or error(ER_NO_METHOD));
-		path = tostring(env[self._env_path]) or (self._path_default or error(ER_NO_PATH));
+		method = env[self._env_method] or (self._method_default or error("no method defined"));
+		path = tostring(env[self._env_path]) or (self._path_default or error("no path defined"));
 	end
 
 	local quick = self._route_quickscope[method][path];
@@ -171,8 +164,8 @@ end
 
 meta_index.Call = function(self, method, path, ...)
 
-	if not method then method = (self._method_default or error(ER_NO_METHOD)); end
-	path = tostring(path) or (self._path_default or error(ER_NO_PATH));
+	if not method then method = (self._method_default or error("no method defined")); end
+	path = tostring(path) or (self._path_default or error("no path defined"));
 
 	local quick = self._route_quickscope[method][path];
 
@@ -292,21 +285,13 @@ end
 
 meta_index._set_table = function(self, node, quick, path, func)
 
-	local valid_type = self._set_valid_types;
-
 	for key, value in next, func do
 
-		local ftype = type(value);
-
-		if not valid_type[ftype] then
-			error(string.format(ER_INVALID_CALLABLE_TYPE, ftype));
-		end
-
 		if type(key) == "string" then
-			self:_set_table(node, quick, path .. "/" .. key, ftype == "table" and value or {[-1] = value});
+			self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
 		elseif type(key) == "number" then
 			if key < -1 then
-				error(string.format(ER_INVALID_TAIL_SIZE, key));
+				error(string.format("invalid tail size: %d", key));
 			end
 
 			self:_set_func(node, quick, path, key, value);
@@ -327,9 +312,18 @@ local node_pass = function(node, ohai)
 	return node;
 end
 
+meta_index._set_valid_types = {
+	["function"] = true, ["table"] = true, ["userdata"] = true;
+}
+
 meta_index._set_func = function(self, node, quick, path, ntail, func)
 
 	if func then
+
+		if not self._set_valid_types[type(func)] then
+			error(string.format("invalid callable type: %s", type(func)));
+		end
+
 		local ohai = self._split(path, "/", true);
 
 		for i = 1, #ohai do
@@ -368,24 +362,24 @@ end
 local check_path_method_tail = function(method, path, tail)
 
 	if not method then
-		error(ER_NO_METHOD);
+		error("no method defined");
 	end
 
 	path = tostring(path);
 
 	if not path then
-		error(ER_NO_PATH);
+		error("no path defined");
 	end
 
 	if tail then
 		local ntail = tonumber(tail);
 
 		if not ntail then
-			error(string.format(ER_INVALID_TAIL_TYPE, type(tail)));
+			error(string.format("invalid tail type: %s", type(tail)));
 		end
 
 		if (ntail < -1) then
-			error(string.format(ER_INVALID_TAIL_SIZE, ntail));
+			error(string.format("invalid tail size: %d", ntail));
 		end
 
 		return path, ntail;
@@ -405,10 +399,6 @@ meta_index.Get = function(self, method, path, ntail)
 	end
 end
 
-meta_index._set_valid_types = {
-	["function"] = true, ["table"] = true, ["userdata"] = true;
-}
-
 meta_index.Set = function(self, method, path, ntail, func)
 
 	if not func and not tonumber(ntail) then
@@ -421,16 +411,8 @@ meta_index.Set = function(self, method, path, ntail, func)
 	local node = self:_node_root(self._route_complex, method, func);
 	local quick = self:_table_ensure(self._route_quickscope, method, func);
 
-	if func then
-		local ftype = type(func);
-
-		if not self._set_valid_types[ftype] then
-			error(string.format(ER_INVALID_CALLABLE_TYPE, ftype));
-		end
-
-		if ftype == "table" then
-			return self:_set_table(node, quick, path, func);
-		end
+	if func and type(func) == "table" then
+		return self:_set_table(node, quick, path, func);
 	end
 
 	return self:_set_func(node, quick, path, ntail, func);
