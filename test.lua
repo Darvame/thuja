@@ -8,7 +8,7 @@ T._meta_index._not_found = function(self,m,p,h,o)
 	assert(o == "NO", o);
 end
 
-local print_env = function(env, ...)
+local print_env = function(self, env, ...)
 	local t = env._thuja_tail_ or env;
 
 	print('TAIL: (' .. #t .. ') ' .. t[0]);
@@ -108,3 +108,5 @@ my1:Set("Q", "/1/2/3/4", function() return 1; end);
 
 assert(my1:Call("Q", "/1/2/3/4") == 0, "qu arg");
 assert(my1:Call("Q", "/1/2/3/4/5/6") == 1, "qu arg");
+
+print("__end__");

@@ -99,12 +99,12 @@ meta_index._found_env = function(self, env, func, path, onum, ohai, ...)
 
 	env[self._tail_key] = new_tail(path, onum, ohai);
 
-	return func(env, ...);
+	return func(self, env, ...);
 end
 
 meta_index._found = function(self, func, path, onum, ohai, ...)
 
-	return func(new_tail(path, onum, ohai), ...);
+	return func(self, new_tail(path, onum, ohai), ...);
 end
 
 local function complex_search(node, ohai, pos)
