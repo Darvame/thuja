@@ -71,17 +71,17 @@ my1:Set(1, "/l1/l2/special", 0, print_env);
 my1._env_path = "teh_path";
 my1._env_method = "teh_method";
 
-my1:Call(1, "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here", "OK");
+my1:Call(1, "/l1/l2/./../l2/special/./special/././special/more/than/0/args/here", "OK");
 my1:CallEnv({
 	["REQUEST_METHOD"] = 1,
-	["PATH_INFO"] = "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here"
+	["PATH_INFO"] = "/l1/l2/./../l2/special/./special/././special/more/than/0/args/here"
 }, "OK");
 
 my1._env_path = "teh_path";
 my1._env_method = "teh_method";
 my1:CallEnv({
 	teh_method = 1,
-	teh_path = "/l1/l2/./../l2/special/./special/././special/more/then/0/args/here"
+	teh_path = "/l1/l2/./../l2/special/./special/././special/more/than/0/args/here"
 }, "OK");
 
 local a = function() end

@@ -1,5 +1,4 @@
 # thuja
-Lua lib with basic routing functions, url/filesystem like routing type with tail, supah fast and relaible (I hope)
 
 <h2>First Look</h2>
 ```lua

@@ -46,7 +46,7 @@ local meta_index = {
 	_env_method = "REQUEST_METHOD",
 	_env_path = "PATH_INFO",
 	_route_quickscope = l2TableClosed,
-	_route_complex = l2TableNode,
+	_route_complex = l2NodeClosed,
 	_not_found = nullFunction,
 	_not_found_env = nullFunction,
 };
@@ -65,15 +65,45 @@ meta_index._node_static = { -- node description
 	-- [string_key1] ... [string_keyn] -- children
 };
 
-T.New = function(self, thu)
+-- split func, must be set manualy in case of fail
+-- module._meta_index._split = your_split_function;
+do
+	local r, split = pcall(function()
+		return require("teateatea").pack;
+	end);
 
-	if not thu then
-		thu = {};
+	if r then
+		meta_index._split = split;
+	end
+end
+
+T.New = function(self, conf)
+
+	local meta_index = self._meta_index;
+
+	local thu = {};
+
+	if conf then
+		for k, v in next, conf do
+			if meta_index[k] then
+				thu[k] = v;
+			end
+		end
 	end
 
-	if not self._meta_index._split and not thu._split then
-		self._meta_index._split = require("teateatea").pack;
-	end
+	return self:Set(thu);
+end
+
+T.SetMeta = function(self, thu)
+
+	assert(thu, "no argument");
+
+	return setmetatable(thu, { __index = self._meta_index });
+end
+
+T.SetNode = function(self, thu)
+
+	assert(thu, "no argument");
 
 	if not thu._route_quickscope then
 		thu._route_quickscope = setmetatable({}, self._table_l2_meta);
@@ -83,7 +113,14 @@ T.New = function(self, thu)
 		thu._route_complex = setmetatable({}, self._node_l2_meta);
 	end
 
-	return setmetatable(thu, { __index = self._meta_index });
+	return thu;
+end
+
+T.Set = function(self, thu)
+
+	assert(thu, "no argument");
+
+	return self:SetMeta(self:SetNode(thu));
 end
 
 local new_tail = function(path, onum, ohai)
@@ -213,29 +250,31 @@ local function node_clean(node, st)
 	end
 end
 
-meta_index._set_quickscope = function(_, self, path, value)
+meta_index._set_quickscope = function(self, method, path, value)
+
+	local quick = self:_table_ensure(self._route_quickscope, method, value);
 
 	--self[path] = value; -- x/a/b/c
 	--self[path .. "/"] = value; -- x/a/b/c/
-	self["/" .. path] = value;	-- /x/a/b/c
-	self["/" .. path .. "/"] = value; -- /x/a/b/c/
+	quick["/" .. path] = value;	-- /x/a/b/c
+	quick["/" .. path .. "/"] = value; -- /x/a/b/c/
 end
 
-meta_index._update_quickscope = function(self, quick, node, ntail)
+meta_index._update_quickscope = function(self, method, node, ntail)
 
-	if ntail and ntail > 0 then -- quickscope only for 0 and -1
+	if ntail and ntail > 0 then -- quickscope is only for 0 and -1
 		return;
 	end
 
 	local candy = node[0];
 
 	-- updating
-	return self:_set_quickscope(quick, quickscope_path(node, {}), candy[0] or candy[-1]);
+	return self:_set_quickscope(method, quickscope_path(node, {}), candy[0] or candy[-1]);
 end
 
-meta_index._remove_quickscope = function(self, quick, node)
+meta_index._remove_quickscope = function(self, method, node)
 
-	return self:_set_quickscope(quick, quickscope_path(node, {}), nil);
+	return self:_set_quickscope(method, quickscope_path(node, {}), nil);
 end
 
 meta_index._table_ensure = function(self, table, key, flag)
@@ -277,18 +316,18 @@ meta_index._node_new = function(self, table, key)
 	return node;
 end
 
-meta_index._set_table = function(self, node, quick, path, func)
+meta_index._set_table = function(self, method, path, func)
 
 	for key, value in next, func do
 
 		if type(key) == "string" then
-			self:_set_table(node, quick, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
+			self:_set_table(method, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
 		elseif type(key) == "number" then
 			if key < -1 then
 				error(string.format("invalid tail size: %d", key));
 			end
 
-			self:_set_func(node, quick, path, key, value);
+			self:_set_func(method, path, key, value);
 		end
 	end
 end
@@ -310,7 +349,9 @@ meta_index._set_valid_types = {
 	["function"] = true, ["table"] = true, ["userdata"] = true;
 }
 
-meta_index._set_func = function(self, node, quick, path, ntail, func)
+meta_index._set_func = function(self, method, path, ntail, func)
+
+	local node = self:_node_root(self._route_complex, method, func);
 
 	if func then
 
@@ -332,7 +373,7 @@ meta_index._set_func = function(self, node, quick, path, ntail, func)
 			candy[ntail] = func;
 		end
 
-		self:_update_quickscope(quick, node, ntail);
+		self:_update_quickscope(method, node, ntail);
 	else
 		node = node_pass(node, self._split(path, "/", true));
 
@@ -344,7 +385,7 @@ meta_index._set_func = function(self, node, quick, path, ntail, func)
 
 		candy[ntail] = nil;
 
-		self:_update_quickscope(quick, node, ntail);
+		self:_update_quickscope(method, node, ntail);
 
 		if not next(candy) then
 			node[0] = nil;
@@ -402,14 +443,11 @@ meta_index.Set = function(self, method, path, ntail, func)
 
 	path, ntail = check_path_method_tail(method, path, ntail);
 
-	local node = self:_node_root(self._route_complex, method, func);
-	local quick = self:_table_ensure(self._route_quickscope, method, func);
-
 	if func and type(func) == "table" then
-		return self:_set_table(node, quick, path, func);
+		return self:_set_table(method, path, func);
 	end
 
-	return self:_set_func(node, quick, path, ntail, func);
+	return self:_set_func(method, path, ntail, func);
 end
 
 meta_index.Del = function(self, method, path, ntail)
@@ -417,15 +455,15 @@ meta_index.Del = function(self, method, path, ntail)
 	return self:Set(method, path, ntail, nil);
 end
 
-local function node_clean_chld(self, node, quick)
+local function node_clean_chld(self, method, node)
 
 	local static = self._node_static;
-	self:_remove_quickscope(quick, node);
+	self:_remove_quickscope(method, node);
 	node[0] = nil;
 
 	for key, value in next, node do
 		if not static[key] then
-			node_clean_chld(self, value, quick);
+			node_clean_chld(self, method, value);
 			node[key] = nil;
 		end
 	end
@@ -441,10 +479,8 @@ meta_index.NodeDel = function(self, method, path)
 		return;
 	end
 
-	local quick = self:_table_ensure(self._route_quickscope, method);
-
 	node[".."][node[2]] = nil;
-	return node_clean_chld(self, node, quick);
+	return node_clean_chld(self, method, node);
 end
 
 return T;
