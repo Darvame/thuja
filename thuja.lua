@@ -132,14 +132,14 @@ local new_tail = function(path, onum, ohai)
 	return {[0] = path};
 end
 
-meta_index._found_env = function(self, env, func, path, onum, ohai, ...)
+meta_index._found_env = function(self, env, method, path, func, onum, ohai, ...)
 
 	env[self._tail_key] = new_tail(path, onum, ohai);
 
 	return func(self, env, ...);
 end
 
-meta_index._found = function(self, func, path, onum, ohai, ...)
+meta_index._found = function(self, method, path, func, onum, ohai, ...)
 
 	return func(self, new_tail(path, onum, ohai), ...);
 end
@@ -169,6 +169,22 @@ local function complex_search(node, ohai, pos)
 	end
 end
 
+meta_index._seek = function(self, method, path)
+
+	local candy = self._route_quickscope[method][path];
+
+	if candy then
+		return candy;
+	end
+
+	local ohai = self._split(path, "/", true);
+	local pos;
+
+	candy, pos = complex_search(self._route_complex[method], ohai, 1);
+
+	return candy, ohai, pos;
+end
+
 meta_index.CallEnv = function(self, env, ...)
 
 	local method;
@@ -183,17 +199,10 @@ meta_index.CallEnv = function(self, env, ...)
 		path = tostring(env[self._env_path]) or (self._path_default or error("no path defined"));
 	end
 
-	local quick = self._route_quickscope[method][path];
-
-	if quick then
-		return self:_found_env(env, quick, path, nil, nil, ...);
-	end
-
-	local ohai = self._split(path, "/", true);
-	local candy, pos = complex_search(self._route_complex[method], ohai, 1);
+	local candy, ohai, pos = self:_seek(method, path);
 
 	if candy then
-		return self:_found_env(env, candy, path, pos, ohai, ...);
+		return self:_found_env(env, method, path, candy, pos, ohai, ...);
 	end
 
 	return self:_not_found_env(env, method, path, ohai, ...);
@@ -204,17 +213,10 @@ meta_index.Call = function(self, method, path, ...)
 	if not method then method = (self._method_default or error("no method defined")); end
 	path = tostring(path) or (self._path_default or error("no path defined"));
 
-	local quick = self._route_quickscope[method][path];
-
-	if quick then
-		return self:_found(quick, path, nil, nil, ...);
-	end
-
-	local ohai = self._split(path, "/", true);
-	local candy, pos = complex_search(self._route_complex[method], ohai, 1);
+	local candy, ohai, pos = self:_seek(method, path);
 
 	if candy then
-		return self:_found(candy, path, pos, ohai, ...);
+		return self:_found(method, path, candy, pos, ohai, ...);
 	end
 
 	return self:_not_found(method, path, ohai, ...);
