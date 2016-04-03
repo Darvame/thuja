@@ -6,6 +6,7 @@ local unpack = unpack;
 local tostring = tostring;
 local tonumber = tonumber;
 local tconcat = table.concat;
+local split;
 
 local emptyTable = {};
 local emptyNode = {1, ""};
@@ -49,11 +50,21 @@ local meta_index = {
 	_route_complex = l2NodeClosed,
 	_not_found = nullFunction,
 	_not_found_env = nullFunction,
+	-- _split_separator = '/',
+	-- _split = require 'teateatea'.pack,
 };
 
+local meta_copy = { -- must be copied but not in meta_index by default
+	_split_separator = true,
+	_split = true,
+}
+
 T._node_l2_meta = l2NodeMeta;
-T._meta_index = meta_index;
 T._table_l2_meta = l2TableMeta;
+
+T._meta_index = meta_index;
+T._meta_copy = meta_copy;
+--T._metatable = { __index = meta_index };
 
 meta_index._node_static = { -- node description
 	[""] = true, -- me
@@ -68,24 +79,20 @@ meta_index._node_static = { -- node description
 -- split func, must be set manualy in case of fail
 -- module._meta_index._split = your_split_function;
 do
-	local r, split = pcall(function()
+	local _;_, split = pcall(function()
 		return require("teateatea").pack;
 	end);
-
-	if r then
-		meta_index._split = split;
-	end
 end
 
 T.New = function(self, conf)
 
-	local meta_index = self._meta_index;
+	local meta_copy = self._meta_copy;
 
 	local thu = {};
 
 	if conf then
 		for k, v in next, conf do
-			if meta_index[k] then
+			if meta_copy[k] then
 				thu[k] = v;
 			end
 		end
@@ -97,8 +104,11 @@ end
 T.SetMeta = function(self, thu)
 
 	assert(thu, "no argument");
+	assert(self._meta_index._split or split, "no split function");
 
-	return setmetatable(thu, { __index = self._meta_index });
+	local meta = self._metatable or { __index = self._meta_index };
+
+	return setmetatable(thu, meta);
 end
 
 T.SetNode = function(self, thu)
@@ -169,7 +179,7 @@ local function complex_search(node, ohai, pos)
 	end
 end
 
-meta_index._seek = function(self, method, path)
+meta_index._seek_by_path = function(self, method, path)
 
 	local candy = self._route_quickscope[method][path];
 
@@ -177,10 +187,12 @@ meta_index._seek = function(self, method, path)
 		return candy;
 	end
 
-	local ohai = self._split(path, "/", true);
-	local pos;
+	return self:_seek_by_table(method, (self._split or split)(path, self._split_separator or "/", true));
+end
 
-	candy, pos = complex_search(self._route_complex[method], ohai, 1);
+meta_index._seek_by_table = function(self, method, ohai)
+
+	local candy, pos = complex_search(self._route_complex[method], ohai, 1);
 
 	return candy, ohai, pos;
 end
@@ -199,7 +211,7 @@ meta_index.CallEnv = function(self, env, ...)
 		path = tostring(env[self._env_path]) or (self._path_default or error("no path defined"));
 	end
 
-	local candy, ohai, pos = self:_seek(method, path);
+	local candy, ohai, pos = self:_seek_by_path(method, path);
 
 	if candy then
 		return self:_found_env(env, method, path, candy, pos, ohai, ...);
@@ -213,7 +225,7 @@ meta_index.Call = function(self, method, path, ...)
 	if not method then method = (self._method_default or error("no method defined")); end
 	path = tostring(path) or (self._path_default or error("no path defined"));
 
-	local candy, ohai, pos = self:_seek(method, path);
+	local candy, ohai, pos = self:_seek_by_path(method, path);
 
 	if candy then
 		return self:_found(method, path, candy, pos, ohai, ...);
@@ -227,14 +239,14 @@ meta_index.CallAny = function(self, env_or_meth, ...)
 	return self[type(env_or_meth) == "table" and "CallEnv" or "Call"](self, env_or_meth, ...);
 end
 
-local function quickscope_path(node, table)
+local function quickscope_path(node, table, sep)
 
 	if node[1] == 1 then
-		return tconcat(table, "/");
+		return tconcat(table, sep or "/");
 	end
 
 	table[node[1] - 1] = node[2];
-	return quickscope_path(node[".."], table);
+	return quickscope_path(node[".."], table, sep);
 end
 
 local function node_clean(node, st)
@@ -255,11 +267,12 @@ end
 meta_index._set_quickscope = function(self, method, path, value)
 
 	local quick = self:_table_ensure(self._route_quickscope, method, value);
+	local sep = self._split_separator or "/";
 
 	--self[path] = value; -- x/a/b/c
 	--self[path .. "/"] = value; -- x/a/b/c/
-	quick["/" .. path] = value;	-- /x/a/b/c
-	quick["/" .. path .. "/"] = value; -- /x/a/b/c/
+	quick[sep .. path] = value;	-- /x/a/b/c
+	quick[sep .. path .. sep] = value; -- /x/a/b/c/
 end
 
 meta_index._update_quickscope = function(self, method, node, ntail)
@@ -271,12 +284,12 @@ meta_index._update_quickscope = function(self, method, node, ntail)
 	local candy = node[0];
 
 	-- updating
-	return self:_set_quickscope(method, quickscope_path(node, {}), candy[0] or candy[-1]);
+	return self:_set_quickscope(method, quickscope_path(node, {}, self._split_separator), candy[0] or candy[-1]);
 end
 
 meta_index._remove_quickscope = function(self, method, node)
 
-	return self:_set_quickscope(method, quickscope_path(node, {}), nil);
+	return self:_set_quickscope(method, quickscope_path(node, {}, self._split_separator), nil);
 end
 
 meta_index._table_ensure = function(self, table, key, flag)
@@ -323,7 +336,8 @@ meta_index._set_table = function(self, method, path, func)
 	for key, value in next, func do
 
 		if type(key) == "string" then
-			self:_set_table(method, path .. "/" .. key, type(value) == "table" and value or {[-1] = value});
+			self:_set_table(method, path .. (self._split_separator or "/") .. key,
+				type(value) == "table" and value or {[-1] = value});
 		elseif type(key) == "number" then
 			if key < -1 then
 				error(string.format("invalid tail size: %d", key));
@@ -361,7 +375,7 @@ meta_index._set_func = function(self, method, path, ntail, func)
 			error(string.format("invalid callable type: %s", type(func)));
 		end
 
-		local ohai = self._split(path, "/", true);
+		local ohai = (self._split or split)(path, self._split_separator or "/", true);
 
 		for i = 1, #ohai do
 			node = node[ohai[i]] or self:_node_new(node, ohai[i]);
@@ -377,7 +391,7 @@ meta_index._set_func = function(self, method, path, ntail, func)
 
 		self:_update_quickscope(method, node, ntail);
 	else
-		node = node_pass(node, self._split(path, "/", true));
+		node = node_pass(node, (self._split or split)(path, self._split_separator or "/", true));
 
 		local candy = node[0];
 
@@ -429,7 +443,8 @@ meta_index.Get = function(self, method, path, ntail)
 
 	path, ntail = check_path_method_tail(method, path, ntail);
 
-	local node = node_pass(self:_node_root(self._route_complex, method), self._split(path, "/", true));
+	local node = node_pass(self:_node_root(self._route_complex, method),
+		(self._split or split)(path, self._split_separator or "/", true));
 
 	if node and node[0] then
 		return node[0][ntail];
@@ -475,7 +490,8 @@ meta_index.NodeDel = function(self, method, path)
 
 	path = check_path_method_tail(method, path, nil);
 
-	local node = node_pass(self:_node_root(self._route_complex, method), self._split(path, "/", true));
+	local node = node_pass(self:_node_root(self._route_complex, method),
+		(self._split or split)(path, self._split_separator or "/", true));
 
 	if not node then
 		return;
@@ -483,6 +499,11 @@ meta_index.NodeDel = function(self, method, path)
 
 	node[".."][node[2]] = nil;
 	return node_clean_chld(self, method, node);
+end
+
+-- now push meta_index to meta_copy and return
+for k,v in next, meta_index do
+	meta_copy[k] = true;
 end
 
 return T;

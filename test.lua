@@ -109,4 +109,16 @@ my1:Set("Q", "/1/2/3/4", function() return 1; end);
 assert(my1:Call("Q", "/1/2/3/4") == 0, "qu arg");
 assert(my1:Call("Q", "/1/2/3/4/5/6") == 1, "qu arg");
 
+-- try own separator
+local ns = T:New({_split_separator = "***"});
+
+ns:Set("T", "***A***B***C***", -1, function(self, tail)
+	assert(tail[1] == "T1");
+	assert(tail[2] == "T2");
+	assert(tail[3] == "T3");
+	assert(#tail == 3);
+end);
+
+ns:Call("T", "***A***B***C***T1***T2***T3*******");
+
 print("__end__");
