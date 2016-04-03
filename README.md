@@ -6,7 +6,7 @@ local thuja = require "thuja";
 
 local tree = thuja:New();
 
-local say_hello = function(tail, a1, ...)
+local say_hello = function(self, tail, a1, ...)
 	local to = #tail > 0 and table.concat(tail, ", ") or "everyone";
 	local alsoto = a1 and table.concat({a1, ...}, ", ") or nil;
 
