@@ -104,7 +104,7 @@ end
 T.SetMeta = function(self, thu)
 
 	assert(thu, "no argument");
-	assert(self._meta_index._split or split, "no split function");
+	assert(split or self._meta_index._split or thu._split, "no split function");
 
 	local meta = self._metatable or { __index = self._meta_index };
 
