@@ -8,36 +8,36 @@ local tonumber = tonumber;
 local tconcat = table.concat;
 local split;
 
-local emptyTable = {};
-local emptyNode = {1, ""};
-local nullFunction = function() end
-local tableFunction = function() return emptyTable; end
-local nodeFunction = function() return emptyNode; end
+local table_empty = {};
+local node_empty = {1, ""};
+local null_function = function() end
+local table_empty_function = function() return table_empty; end
+local node_empty_function = function() return node_empty; end
 
-emptyNode["."] = emptyNode;
-emptyNode[".."] = emptyNode;
-emptyNode[""] = emptyNode;
+node_empty["."] = node_empty;
+node_empty[".."] = node_empty;
+node_empty[""] = node_empty;
 
 local setmetatable = setmetatable;
-setmetatable(emptyTable, {__newindex = nullFunction});
-setmetatable(emptyNode, {__newindex = nullFunction});
+setmetatable(table_empty, {__newindex = null_function});
+setmetatable(node_empty, {__newindex = null_function});
 
-local l2TableMeta = {
-	__index = tableFunction;
+local table_l2_meta = {
+	__index = table_empty_function;
 };
 
-local l2NodeMeta = {
-	__index = nodeFunction;
+local node_l2_meta = {
+	__index = node_empty_function;
 }
 
 local l2TableClosed = setmetatable({}, {
-	__index = tableFunction;
-	__newindex = nullFunction;
+	__index = table_empty_function;
+	__newindex = null_function;
 });
 
 local l2NodeClosed = setmetatable({}, {
-	__index = nodeFunction;
-	__newindex = nullFunction;
+	__index = node_empty_function;
+	__newindex = null_function;
 });
 
 local meta_index = {
@@ -48,19 +48,19 @@ local meta_index = {
 	_env_path = "PATH_INFO",
 	_route_quickscope = l2TableClosed,
 	_route_complex = l2NodeClosed,
-	_not_found = nullFunction,
-	_not_found_env = nullFunction,
+	_not_found = null_function,
+	_not_found_env = null_function,
 	-- _split_separator = '/',
 	-- _split = require 'teateatea'.pack,
 };
 
-local meta_copy = { -- must be copied but not in meta_index by default
+local meta_copy = setmetatable({ -- must be copied but not in meta_index by default
 	_split_separator = true,
 	_split = true,
-}
+}, { __index == meta_index });
 
-T._node_l2_meta = l2NodeMeta;
-T._table_l2_meta = l2TableMeta;
+T._node_l2_meta = node_l2_meta;
+T._table_l2_meta = table_l2_meta;
 
 T._meta_index = meta_index;
 T._meta_copy = meta_copy;
@@ -499,11 +499,6 @@ meta_index.NodeDel = function(self, method, path)
 
 	node[".."][node[2]] = nil;
 	return node_clean_chld(self, method, node);
-end
-
--- now push meta_index to meta_copy and return
-for k,v in next, meta_index do
-	meta_copy[k] = true;
 end
 
 return T;
